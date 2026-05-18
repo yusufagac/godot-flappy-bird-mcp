@@ -1,12 +1,18 @@
 extends Node2D
 
-enum GameState { START, PLAYING, BOSS_INTRO, BOSS_FIGHT, BONFIRE, VICTORY, GAME_OVER }
+enum GameState { MAIN_MENU, START, PLAYING, BOSS_INTRO, BOSS_FIGHT, BONFIRE, VICTORY, GAME_OVER }
 
-var current_state: GameState = GameState.START
+var current_state: GameState = GameState.MAIN_MENU
 var score: int = 0
 var highscore: int = 0
 var last_checkpoint_score: int = 0
 var last_boss_fight_score: int = 0
+
+# Main Menu UI elements
+var main_menu_container: Control = null
+var btn_new_game: Button = null
+var btn_continue: Button = null
+var btn_exit: Button = null
 
 # UI Overlay references
 var bonfire_lit_label: Label = null
@@ -83,19 +89,130 @@ func _ready() -> void:
 
 	# Build Game UI programmatically for robust setup without scene edits
 	_setup_ui()
-	_reset_game()
 
 func _setup_ui() -> void:
 	var canvas_layer = CanvasLayer.new()
 	add_child(canvas_layer)
 
-	# Title Label
+	# Main Menu UI Panel Container
+	main_menu_container = Control.new()
+	main_menu_container.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+	canvas_layer.add_child(main_menu_container)
+	
+	# Menu Backdrop overlay (fades bird/game)
+	var menu_bg = ColorRect.new()
+	menu_bg.color = Color(0.08, 0.08, 0.1, 0.75) # Translucent dark background
+	menu_bg.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+	main_menu_container.add_child(menu_bg)
+	
+	# Dark Souls style gotic panel
+	var menu_panel = Panel.new()
+	menu_panel.position = Vector2(80, 180)
+	menu_panel.size = Vector2(320, 320)
+	var panel_sb = StyleBoxFlat.new()
+	panel_sb.bg_color = Color(0.06, 0.06, 0.08, 0.95)
+	panel_sb.border_width_left = 2
+	panel_sb.border_width_top = 2
+	panel_sb.border_width_right = 2
+	panel_sb.border_width_bottom = 2
+	panel_sb.border_color = Color(0.4, 0.12, 0.1) # Dark red border
+	menu_panel.add_theme_stylebox_override("panel", panel_sb)
+	main_menu_container.add_child(menu_panel)
+	
+	# Menu Title
+	var menu_title = Label.new()
+	menu_title.text = "FLAPPY SOULS"
+	menu_title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	menu_title.position = Vector2(0, 30)
+	menu_title.size = Vector2(320, 50)
+	menu_title.add_theme_font_size_override("font_size", 28)
+	menu_title.add_theme_color_override("font_color", Color(0.75, 0.2, 0.15)) # Souls dark red title!
+	menu_panel.add_child(menu_title)
+	
+	# Styleboxes for gotic buttons
+	var style_normal = StyleBoxFlat.new()
+	style_normal.bg_color = Color(0.12, 0.12, 0.15, 0.9)
+	style_normal.border_width_left = 1
+	style_normal.border_width_top = 1
+	style_normal.border_width_right = 1
+	style_normal.border_width_bottom = 1
+	style_normal.border_color = Color(0.75, 0.55, 0.15) # Gold
+	
+	var style_hover = StyleBoxFlat.new()
+	style_hover.bg_color = Color(0.2, 0.2, 0.25, 0.9)
+	style_hover.border_width_left = 2
+	style_hover.border_width_top = 2
+	style_hover.border_width_right = 2
+	style_hover.border_width_bottom = 2
+	style_hover.border_color = Color(1.0, 0.65, 0.0) # Bright orange glow
+	
+	var style_disabled = StyleBoxFlat.new()
+	style_disabled.bg_color = Color(0.08, 0.08, 0.1, 0.5)
+	style_disabled.border_width_left = 1
+	style_disabled.border_width_top = 1
+	style_disabled.border_width_right = 1
+	style_disabled.border_width_bottom = 1
+	style_disabled.border_color = Color(0.3, 0.3, 0.3) # Muted gray
+	
+	# 1. NEW GAME BUTTON
+	btn_new_game = Button.new()
+	btn_new_game.text = "NEW GAME"
+	btn_new_game.position = Vector2(40, 100)
+	btn_new_game.size = Vector2(240, 45)
+	btn_new_game.add_theme_stylebox_override("normal", style_normal)
+	btn_new_game.add_theme_stylebox_override("hover", style_hover)
+	btn_new_game.add_theme_stylebox_override("pressed", style_hover)
+	btn_new_game.add_theme_color_override("font_color", Color(0.9, 0.8, 0.7))
+	btn_new_game.add_theme_color_override("font_hover_color", Color(1.0, 0.75, 0.15))
+	btn_new_game.pressed.connect(_on_new_game_pressed)
+	menu_panel.add_child(btn_new_game)
+	
+	# 2. CONTINUE BUTTON
+	btn_continue = Button.new()
+	btn_continue.text = "CONTINUE"
+	btn_continue.position = Vector2(40, 165)
+	btn_continue.size = Vector2(240, 45)
+	btn_continue.add_theme_stylebox_override("normal", style_normal)
+	btn_continue.add_theme_stylebox_override("hover", style_hover)
+	btn_continue.add_theme_stylebox_override("pressed", style_hover)
+	btn_continue.add_theme_stylebox_override("disabled", style_disabled)
+	btn_continue.add_theme_color_override("font_color", Color(0.9, 0.8, 0.7))
+	btn_continue.add_theme_color_override("font_hover_color", Color(1.0, 0.75, 0.15))
+	btn_continue.add_theme_color_override("font_disabled_color", Color(0.4, 0.4, 0.4))
+	btn_continue.pressed.connect(_on_continue_pressed)
+	menu_panel.add_child(btn_continue)
+	
+	# Check if save game exists to enable Continue button
+	var saved_score = _load_checkpoint()
+	if saved_score > 0:
+		last_checkpoint_score = saved_score
+		btn_continue.disabled = false
+		btn_continue.text = "CONTINUE (LVL %d)" % saved_score
+	else:
+		btn_continue.disabled = true
+		btn_continue.text = "CONTINUE (NO SAVE)"
+	
+	# 3. EXIT BUTTON
+	btn_exit = Button.new()
+	btn_exit.text = "EXIT"
+	btn_exit.position = Vector2(40, 230)
+	btn_exit.size = Vector2(240, 45)
+	btn_exit.add_theme_stylebox_override("normal", style_normal)
+	btn_exit.add_theme_stylebox_override("hover", style_hover)
+	btn_exit.add_theme_stylebox_override("pressed", style_hover)
+	btn_exit.add_theme_color_override("font_color", Color(0.9, 0.8, 0.7))
+	btn_exit.add_theme_color_override("font_hover_color", Color(1.0, 0.75, 0.15))
+	btn_exit.pressed.connect(_on_exit_pressed)
+	menu_panel.add_child(btn_exit)
+
+	# Title Label (Hidden by default, used for gameplay slain banners)
 	title_label = Label.new()
-	title_label.text = "FLAPPY BIRD\nMCP"
+	title_label.text = "FLAPPY SOULS"
 	title_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	title_label.position = Vector2(0, 140)
 	title_label.size = Vector2(VIEWPORT_WIDTH, 100)
 	title_label.add_theme_font_size_override("font_size", 42)
+	title_label.hide()
 	canvas_layer.add_child(title_label)
 
 	# Instructions Label
@@ -237,6 +354,9 @@ func _setup_ui() -> void:
 	bonfire_lit_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
 	bonfire_lit_label.hide()
 	canvas_layer.add_child(bonfire_lit_label)
+	
+	if progress_container:
+		progress_container.hide()
 
 func _reset_game(start_score: int = 0) -> void:
 	# Clear old pipes
@@ -324,6 +444,8 @@ func _reset_game(start_score: int = 0) -> void:
 		victory_label.modulate = Color.WHITE
 	if bonfire_lit_label:
 		bonfire_lit_label.hide()
+	if progress_container:
+		progress_container.show()
 		
 	# Checkpoint starting logic
 	if score > 0:
@@ -496,11 +618,28 @@ func _physics_process(delta: float) -> void:
 				
 		GameState.VICTORY:
 			if Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-				_reset_game()
+				current_state = GameState.MAIN_MENU
+				if victory_label:
+					victory_label.hide()
+				if instruction_label:
+					instruction_label.hide()
+				if score_label:
+					score_label.hide()
+				if progress_container:
+					progress_container.hide()
+				if main_menu_container:
+					var saved_score = _load_checkpoint()
+					if saved_score > 0:
+						btn_continue.disabled = false
+						btn_continue.text = "CONTINUE (LVL %d)" % saved_score
+					else:
+						btn_continue.disabled = true
+						btn_continue.text = "CONTINUE (NO SAVE)"
+					main_menu_container.show()
 				
 		GameState.GAME_OVER:
 			if Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
-				_reset_game()
+				_reset_game(last_checkpoint_score)
 
 	# Clean up deleted reference lists
 	var active_gargoyles: Array[Area2D] = []
@@ -612,6 +751,7 @@ func _on_boss_defeated() -> void:
 		
 		# Record checkpoint
 		last_checkpoint_score = score
+		_save_checkpoint(score)
 		
 		# 3. Transition to BONFIRE resting cutscene
 		current_state = GameState.BONFIRE
@@ -646,6 +786,8 @@ func _on_boss_defeated() -> void:
 			current_state = GameState.VICTORY
 			score = 100
 			score_label.text = str(score)
+			last_checkpoint_score = 0
+			_save_checkpoint(0)
 			
 			victory_label.show()
 			victory_label.modulate.a = 0.0
@@ -712,9 +854,13 @@ func _on_mcp_flap() -> void:
 		bird.flap()
 
 func _on_mcp_restart() -> void:
-	if current_state in [GameState.GAME_OVER, GameState.VICTORY]:
+	if current_state in [GameState.GAME_OVER, GameState.VICTORY, GameState.MAIN_MENU]:
+		if main_menu_container:
+			main_menu_container.hide()
 		if current_state == GameState.VICTORY:
 			last_checkpoint_score = 0
+		elif current_state == GameState.MAIN_MENU:
+			last_checkpoint_score = _load_checkpoint()
 		_reset_game(last_checkpoint_score)
 
 func _on_mcp_pause() -> void:
@@ -902,3 +1048,38 @@ func _draw() -> void:
 			
 		# Glowing core
 		draw_circle(flame_center + Vector2(0, 4), 8.0, Color(1.0, 0.9, 0.5, 0.9))
+
+const SAVE_PATH = "user://savegame.data"
+
+func _save_checkpoint(score_to_save: int) -> void:
+	var file = FileAccess.open(SAVE_PATH, FileAccess.WRITE)
+	if file:
+		file.store_32(score_to_save)
+		file.close()
+
+func _load_checkpoint() -> int:
+	if FileAccess.file_exists(SAVE_PATH):
+		var file = FileAccess.open(SAVE_PATH, FileAccess.READ)
+		if file:
+			var loaded_score = file.get_32()
+			file.close()
+			return loaded_score
+	return 0
+
+func _on_new_game_pressed() -> void:
+	if main_menu_container:
+		main_menu_container.hide()
+	last_checkpoint_score = 0
+	_save_checkpoint(0)
+	_reset_game(0)
+
+func _on_continue_pressed() -> void:
+	var saved_score = _load_checkpoint()
+	if saved_score > 0:
+		if main_menu_container:
+			main_menu_container.hide()
+		last_checkpoint_score = saved_score
+		_reset_game(last_checkpoint_score)
+
+func _on_exit_pressed() -> void:
+	get_tree().quit()
