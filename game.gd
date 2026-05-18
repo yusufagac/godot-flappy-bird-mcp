@@ -124,6 +124,7 @@ func _reset_game() -> void:
 	
 	# Collision Shape for Bird
 	var collision = CollisionShape2D.new()
+	collision.name = "CollisionShape2D"
 	var circle = CircleShape2D.new()
 	circle.radius = 14.0
 	collision.shape = circle

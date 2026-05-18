@@ -37,15 +37,16 @@ func _process(delta: float) -> void:
 			var packet_str = packet.get_string_from_utf8()
 			_handle_server_message(packet_str)
 			
-	elif state == WebSocketPeer.STATE_CLOSED or state == WebSocketPeer.STATE_CONNECTING:
+	elif state == WebSocketPeer.STATE_CLOSED or state == WebSocketPeer.STATE_CLOSING:
 		if is_connected_to_server:
 			is_connected_to_server = false
 			print("Disconnected from MCP Server.")
 		
-		reconnect_timer += delta
-		if reconnect_timer >= RECONNECT_DELAY:
-			reconnect_timer = 0.0
-			_connect_to_mcp_server()
+		if state == WebSocketPeer.STATE_CLOSED:
+			reconnect_timer += delta
+			if reconnect_timer >= RECONNECT_DELAY:
+				reconnect_timer = 0.0
+				_connect_to_mcp_server()
 
 func _send_handshake() -> void:
 	var handshake = {

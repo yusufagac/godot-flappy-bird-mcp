@@ -13,10 +13,18 @@ var is_alive: bool = true
 var wing_anim_timer: float = 0.0
 var wing_offset_y: float = 0.0
 
-@onready var collision_shape: CollisionShape2D = $CollisionShape2D
+var collision_shape: CollisionShape2D
 
 func _ready() -> void:
 	# Add a collision shape if not already present
+	collision_shape = get_node_or_null("CollisionShape2D")
+	if not collision_shape:
+		collision_shape = CollisionShape2D.new()
+		collision_shape.name = "CollisionShape2D"
+		var circle = CircleShape2D.new()
+		circle.radius = 14.0
+		collision_shape.shape = circle
+		add_child(collision_shape)
 	velocity = Vector2.ZERO
 
 func _physics_process(delta: float) -> void:
