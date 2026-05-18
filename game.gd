@@ -6,6 +6,7 @@ var current_state: GameState = GameState.START
 var score: int = 0
 var highscore: int = 0
 var last_checkpoint_score: int = 0
+var last_boss_fight_score: int = 0
 
 # UI Overlay references
 var bonfire_lit_label: Label = null
@@ -265,6 +266,7 @@ func _reset_game(start_score: int = 0) -> void:
 	boss = null
 	
 	score = start_score
+	last_boss_fight_score = start_score
 	score_label.text = str(score)
 	if score > 0:
 		score_label.show()
@@ -414,9 +416,9 @@ func _physics_process(delta: float) -> void:
 			if bird.global_position.y >= GROUND_Y:
 				bird.die()
 				
-			# Trigger progressive boss fights at score endings of 6 (6, 16, 26... up to 96)
-			var score_mod = score % 10
-			if score_mod == 6 and score < 100:
+			# Trigger progressive boss fights at multiples of 10 (10, 20, 30... up to 100)
+			if score > 0 and score % 10 == 0 and last_boss_fight_score < score and score <= 100:
+				last_boss_fight_score = score
 				current_state = GameState.BOSS_INTRO
 				boss_intro_timer = 0.0
 				shake_intensity = 6.0 # Earth rumbling intro!
@@ -438,7 +440,7 @@ func _physics_process(delta: float) -> void:
 				boss.health_changed.connect(_on_boss_health_changed)
 				
 				# Calculate and set progressive boss tier
-				var tier = (score / 10) + 1
+				var tier = score / 10
 				boss.set_tier(tier)
 				
 				add_child(boss)
@@ -585,7 +587,7 @@ func _on_boss_defeated() -> void:
 	boss_hp_bar_container.hide()
 	shake_intensity = 18.0
 	
-	var current_tier = (score / 10) + 1
+	var current_tier = score / 10
 	if current_tier < 10:
 		# Mid-boss slain!
 		# 1. Clear all active projectiles, enemies, and obstacles to make the screen safe
@@ -605,8 +607,7 @@ func _on_boss_defeated() -> void:
 				p.queue_free()
 		powerups.clear()
 				
-		# 2. Grant +4 score bonus to reach the next multiple of 10
-		score = ((score / 10) + 1) * 10
+		# 2. Update UI Score
 		score_label.text = str(score)
 		
 		# Record checkpoint
