@@ -61,40 +61,57 @@ func _on_bird_entered(body: Node2D) -> void:
 	if body is Bird:
 		body.die()
 
-# Procedural drawing of beautiful premium retro/modern green pipes
+# Procedural drawing of beautiful premium dark gothic stone columns
 func _draw() -> void:
-	# Colors
-	var dark_green = Color(0.2, 0.6, 0.25)
-	var light_green = Color(0.35, 0.75, 0.4)
-	var shadow_green = Color(0.12, 0.45, 0.18)
-	var cap_color = Color(0.4, 0.8, 0.45)
+	# Gothic/Souls Dark Stone Colors
+	var stone_dark = Color(0.14, 0.14, 0.17)
+	var stone_light = Color(0.26, 0.26, 0.3)
+	var stone_shadow = Color(0.06, 0.06, 0.08)
+	var lava_glow = Color(0.9, 0.35, 0.02) # Fiery orange glow in cracks
 	
 	# Top Pipe boundary
 	var top_bottom_y = -GAP_SIZE / 2.0
 	
+	# Draw Top Column (Dark weathered stone)
+	draw_rect(Rect2(-PIPE_WIDTH/2.0, -1000, PIPE_WIDTH, 1000 + top_bottom_y - 24), stone_dark)
+	# Highlights & Shadows
+	draw_rect(Rect2(-PIPE_WIDTH/2.0, -1000, 4, 1000 + top_bottom_y - 24), stone_light)
+	draw_rect(Rect2(PIPE_WIDTH/2.0 - 6, -1000, 6, 1000 + top_bottom_y - 24), stone_shadow)
+	
+	# Weathered Brick Lines (Horizontal cracks)
+	var h_cracks = [top_bottom_y - 80, top_bottom_y - 180, top_bottom_y - 300, top_bottom_y - 450]
+	for h in h_cracks:
+		if h < top_bottom_y - 24:
+			draw_line(Vector2(-PIPE_WIDTH/2.0, h), Vector2(PIPE_WIDTH/2.0, h), stone_light, 1.5)
+			# Random fiery cracks
+			draw_line(Vector2(-PIPE_WIDTH/4.0, h), Vector2(0, h + 8), lava_glow, 2.0)
+			draw_line(Vector2(0, h + 8), Vector2(PIPE_WIDTH/3.0, h + 2), lava_glow, 1.5)
+
+	# Draw Gothic Top Capital
+	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 8, top_bottom_y - 24, PIPE_WIDTH + 16, 24), stone_light)
+	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 4, top_bottom_y - 20, PIPE_WIDTH + 8, 16), stone_dark)
+	# Draw Glowing Rune/Crest in the center of the capital
+	draw_circle(Vector2(0, top_bottom_y - 12), 6.0, lava_glow)
+	draw_circle(Vector2(0, top_bottom_y - 12), 3.0, Color.YELLOW)
+	
 	# Bottom Pipe boundary
 	var bottom_top_y = GAP_SIZE / 2.0
 	
-	# Draw Top Pipe (Sleek Pillar)
-	draw_rect(Rect2(-PIPE_WIDTH/2.0, -1000, PIPE_WIDTH, 1000 + top_bottom_y - 24), dark_green)
-	# Accent highlight line
-	draw_rect(Rect2(-PIPE_WIDTH/2.0 + 4, -1000, 8, 1000 + top_bottom_y - 24), light_green)
-	# Shadow edge
-	draw_rect(Rect2(PIPE_WIDTH/2.0 - 12, -1000, 12, 1000 + top_bottom_y - 24), shadow_green)
+	# Draw Bottom Column
+	draw_rect(Rect2(-PIPE_WIDTH/2.0, bottom_top_y + 24, PIPE_WIDTH, 1000), stone_dark)
+	draw_rect(Rect2(-PIPE_WIDTH/2.0, bottom_top_y + 24, 4, 1000), stone_light)
+	draw_rect(Rect2(PIPE_WIDTH/2.0 - 6, bottom_top_y + 24, 6, 1000), stone_shadow)
 	
-	# Draw Top Pipe Cap
-	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 6, top_bottom_y - 24, PIPE_WIDTH + 12, 24), cap_color)
-	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 4, top_bottom_y - 22, 6, 20), Color.WHITE)
-	draw_rect(Rect2(PIPE_WIDTH/2.0 + 2, top_bottom_y - 22, 4, 20), shadow_green)
-	
-	# Draw Bottom Pipe (Sleek Pillar)
-	draw_rect(Rect2(-PIPE_WIDTH/2.0, bottom_top_y + 24, PIPE_WIDTH, 1000), dark_green)
-	# Accent highlight line
-	draw_rect(Rect2(-PIPE_WIDTH/2.0 + 4, bottom_top_y + 24, 8, 1000), light_green)
-	# Shadow edge
-	draw_rect(Rect2(PIPE_WIDTH/2.0 - 12, bottom_top_y + 24, 12, 1000), shadow_green)
-	
-	# Draw Bottom Pipe Cap
-	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 6, bottom_top_y, PIPE_WIDTH + 12, 24), cap_color)
-	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 4, bottom_top_y + 2, 6, 20), Color.WHITE)
-	draw_rect(Rect2(PIPE_WIDTH/2.0 + 2, bottom_top_y + 2, 4, 20), shadow_green)
+	# Weathered Brick Lines for Bottom
+	var b_cracks = [bottom_top_y + 80, bottom_top_y + 180, bottom_top_y + 300, bottom_top_y + 450]
+	for h in b_cracks:
+		draw_line(Vector2(-PIPE_WIDTH/2.0, h), Vector2(PIPE_WIDTH/2.0, h), stone_light, 1.5)
+		draw_line(Vector2(-PIPE_WIDTH/3.0, h), Vector2(-10, h - 10), lava_glow, 2.0)
+		draw_line(Vector2(-10, h - 10), Vector2(PIPE_WIDTH/4.0, h - 4), lava_glow, 1.5)
+		
+	# Draw Gothic Bottom Capital
+	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 8, bottom_top_y, PIPE_WIDTH + 16, 24), stone_light)
+	draw_rect(Rect2(-PIPE_WIDTH/2.0 - 4, bottom_top_y + 4, PIPE_WIDTH + 8, 16), stone_dark)
+	# Glowing Rune
+	draw_circle(Vector2(0, bottom_top_y + 12), 6.0, lava_glow)
+	draw_circle(Vector2(0, bottom_top_y + 12), 3.0, Color.YELLOW)
