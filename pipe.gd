@@ -12,7 +12,15 @@ var is_active: bool = true
 var score_recorded: bool = false
 var bird_ref: Node2D = null
 
+# Dynamic movement variables
+var movement_type: int = 0 # 0 = Static, 1 = Vertical, 2 = Horizontal, 3 = Diagonal
+var movement_speed: float = 2.2
+var movement_range: float = 50.0
+var initial_y: float = 0.0
+var time_passed: float = 0.0
+
 func _ready() -> void:
+	initial_y = position.y
 	# Add Area2D components dynamically for collisions
 	_setup_collision_areas()
 
@@ -20,7 +28,20 @@ func _physics_process(delta: float) -> void:
 	if not is_active:
 		return
 
+	time_passed += delta
+	
+	# Horizontal scroll
 	position.x -= SPEED * delta
+	
+	# Apply dynamic secondary movement
+	match movement_type:
+		1: # Vertical bobbing
+			position.y = initial_y + sin(time_passed * movement_speed) * movement_range
+		2: # Horizontal squeeze sliding
+			position.x += cos(time_passed * movement_speed * 1.5) * 1.2
+		3: # Diagonal orbit movement
+			position.y = initial_y + sin(time_passed * movement_speed) * movement_range
+			position.x += cos(time_passed * movement_speed * 1.5) * 1.0
 	
 	# Delete once off screen
 	if position.x < -100:

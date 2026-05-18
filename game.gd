@@ -19,6 +19,11 @@ var you_died_overlay: ColorRect = null
 var you_died_label: Label = null
 var victory_label: Label = null
 
+# Progress HUD elements
+var progress_container: Panel = null
+var progress_indicator: ColorRect = null
+var progress_text_label: Label = null
+
 var estus_spawn_timer: float = 0.0
 var enemy_spawn_timer: float = 0.0
 const ESTUS_SPAWN_INTERVAL: float = 4.2
@@ -179,6 +184,43 @@ func _setup_ui() -> void:
 	victory_label.hide()
 	canvas_layer.add_child(victory_label)
 
+	# Progression HUD container (slim elegant desaturated gothic bar)
+	progress_container = Panel.new()
+	progress_container.size = Vector2(400, 32)
+	progress_container.position = Vector2(40, 16)
+	var sb_prog = StyleBoxFlat.new()
+	sb_prog.bg_color = Color(0.06, 0.06, 0.08, 0.6)
+	sb_prog.border_width_bottom = 1
+	sb_prog.border_width_top = 1
+	sb_prog.border_width_left = 1
+	sb_prog.border_width_right = 1
+	sb_prog.border_color = Color(0.24, 0.24, 0.28)
+	sb_prog.corner_radius_top_left = 4
+	sb_prog.corner_radius_bottom_right = 4
+	progress_container.add_theme_stylebox_override("panel", sb_prog)
+	canvas_layer.add_child(progress_container)
+
+	var prog_line = ColorRect.new()
+	prog_line.size = Vector2(340, 2)
+	prog_line.position = Vector2(30, 22)
+	prog_line.color = Color(0.18, 0.18, 0.22)
+	progress_container.add_child(prog_line)
+
+	progress_indicator = ColorRect.new()
+	progress_indicator.size = Vector2(8, 8)
+	progress_indicator.position = Vector2(30, 19)
+	progress_indicator.color = Color(1.0, 0.5, 0.0) # Golden-orange ember slider
+	progress_container.add_child(progress_indicator)
+
+	progress_text_label = Label.new()
+	progress_text_label.size = Vector2(400, 20)
+	progress_text_label.position = Vector2(0, 2)
+	progress_text_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	progress_text_label.add_theme_font_size_override("font_size", 9)
+	progress_text_label.add_theme_color_override("font_color", Color(0.8, 0.8, 0.82))
+	progress_text_label.text = "PROGRESS: 0/100 | Target: Asylum Demon"
+	progress_container.add_child(progress_text_label)
+
 func _reset_game() -> void:
 	# Clear old pipes
 	for pipe in pipes:
@@ -209,6 +251,11 @@ func _reset_game() -> void:
 	score = 0
 	score_label.text = "0"
 	score_label.hide()
+	
+	if progress_indicator:
+		progress_indicator.position.x = 30
+	if progress_text_label:
+		progress_text_label.text = "PROGRESS: 0/100 | Target: Asylum Demon"
 	
 	# Reset timers
 	estus_spawn_timer = 0.0
@@ -257,6 +304,25 @@ func _start_game() -> void:
 	instruction_label.hide()
 
 func _physics_process(delta: float) -> void:
+	# Update HUD progress bar slider and target text dynamically
+	if progress_indicator and progress_text_label and bird and bird.is_alive:
+		var progress_ratio = clamp(float(score) / 100.0, 0.0, 1.0)
+		progress_indicator.position.x = 30.0 + (progress_ratio * 340.0) - 4.0
+		
+		var next_boss = "Asylum Demon"
+		if score < 10: next_boss = "Asylum Demon"
+		elif score < 20: next_boss = "Bell Gargoyle"
+		elif score < 30: next_boss = "Capra Demon"
+		elif score < 40: next_boss = "Gaping Dragon"
+		elif score < 50: next_boss = "Chaos Witch Quelaag"
+		elif score < 60: next_boss = "Wolf Sif"
+		elif score < 70: next_boss = "Iron Golem"
+		elif score < 80: next_boss = "Ornstein"
+		elif score < 90: next_boss = "Gravelord Nito"
+		else: next_boss = "Lord Gwyn"
+		
+		progress_text_label.text = "PROGRESS: %d/100 | Target: %s" % [score, next_boss]
+
 	# Process screen shake
 	if shake_intensity > 0:
 		shake_intensity = lerp(shake_intensity, 0.0, shake_decay * delta)
@@ -300,8 +366,9 @@ func _physics_process(delta: float) -> void:
 			if bird.global_position.y >= GROUND_Y:
 				bird.die()
 				
-			# Trigger Boss Fight!
-			if score >= 6:
+			# Trigger progressive boss fights at score endings of 6 (6, 16, 26... up to 96)
+			var score_mod = score % 10
+			if score_mod == 6 and score < 100:
 				current_state = GameState.BOSS_INTRO
 				boss_intro_timer = 0.0
 				shake_intensity = 6.0 # Earth rumbling intro!
@@ -321,11 +388,18 @@ func _physics_process(delta: float) -> void:
 				boss.set_script(boss_script)
 				boss.defeated.connect(_on_boss_defeated)
 				boss.health_changed.connect(_on_boss_health_changed)
+				
+				# Calculate and set progressive boss tier
+				var tier = (score / 10) + 1
+				boss.set_tier(tier)
+				
 				add_child(boss)
 				boss.start_boss()
 				
-				# Setup HP Bar values
-				boss_hp_bar.value = 100
+				# Setup HP Bar values dynamically
+				boss_hp_bar.max_value = boss.max_hp
+				boss_hp_bar.value = boss.hp
+				boss_name_label.text = boss.boss_name
 				boss_hp_bar_container.show()
 				
 				current_state = GameState.BOSS_FIGHT
@@ -396,6 +470,19 @@ func _spawn_pipe_pair() -> void:
 	# Position shapes relative to the gap center
 	pipe_instance.position.y = random_gap
 	
+	# Scale obstacle movement difficulty based on current score
+	if score < 10:
+		pipe_instance.movement_type = 0 # Static gotic columns
+	elif score < 30:
+		# 50% chance of vertical bobbing columns
+		pipe_instance.movement_type = randi() % 2
+	elif score < 60:
+		# Static, vertical bobbing, or horizontal sliding columns
+		pipe_instance.movement_type = randi() % 3
+	else:
+		# Extreme stage: Static, vertical, horizontal, or complex diagonal swings!
+		pipe_instance.movement_type = randi() % 4
+		
 	add_child(pipe_instance)
 	pipes.append(pipe_instance)
 
@@ -423,23 +510,51 @@ func _on_boss_health_changed(new_hp: int, max_hp: int) -> void:
 	boss_hp_bar.value = float(new_hp) / max_hp * 100.0
 
 func _on_boss_defeated() -> void:
-	if current_state != GameState.VICTORY:
-		current_state = GameState.VICTORY
-		victory_label.show()
-		victory_label.modulate.a = 0.0
-		var tween = create_tween()
-		tween.tween_property(victory_label, "modulate:a", 1.0, 1.8)
+	# Hide boss bar and shake screen
+	boss_hp_bar_container.hide()
+	shake_intensity = 18.0
+	
+	var current_tier = (score / 10) + 1
+	if current_tier < 10:
+		# Mid-boss slain!
+		# 1. Clear all active boss fireballs to make the screen safe
+		for child in get_children():
+			if child is Projectile and child.type != 0:
+				child.queue_free()
+				
+		# 2. Grant +4 score bonus to reach the next X0 multiple
+		score = ((score / 10) + 1) * 10
+		score_label.text = str(score)
 		
-		shake_intensity = 18.0
+		# 3. Resume PLAYING state and reset timers
+		current_state = GameState.PLAYING
+		pipe_spawn_timer = 0.0
+		enemy_spawn_timer = 0.0
 		
-		# Stop boss bar
-		boss_hp_bar_container.hide()
-		
-		if score + 50 > highscore:
-			highscore = score + 50
+		# 4. Briefly flash a Souls-style boss slain notification
+		title_label.text = "%s SLAIN" % boss.boss_name
+		title_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15)) # Golden yellow
+		title_label.show()
+		var hide_title = create_tween()
+		hide_title.tween_interval(2.5)
+		hide_title.tween_callback(title_label.hide)
+	else:
+		# Final Boss Gwyn Slain! Full Victory!
+		if current_state != GameState.VICTORY:
+			current_state = GameState.VICTORY
+			score = 100
+			score_label.text = str(score)
 			
-		instruction_label.text = "BOSS SLAIN! VICTORY ACHIEVED!\nSCORE: %d | TAP SPACE TO PLAY AGAIN" % [score + 50]
-		instruction_label.show()
+			victory_label.show()
+			victory_label.modulate.a = 0.0
+			var tween = create_tween()
+			tween.tween_property(victory_label, "modulate:a", 1.0, 1.8)
+			
+			if score > highscore:
+				highscore = score
+				
+			instruction_label.text = "ALL BOSSES SLAIN! VICTORY ACHIEVED!\nTAP SPACE TO PLAY AGAIN"
+			instruction_label.show()
 
 func _on_pipe_scored() -> void:
 	score += 1
