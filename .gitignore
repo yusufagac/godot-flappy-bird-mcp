@@ -1,0 +1,15 @@
+# Godot-specific ignores
+.godot/
+*.translation
+*.tmp
+
+# Python-specific ignores
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.ipynb_checkpoints/
+.pytest_cache/
+.venv/
+venv/
+env/
