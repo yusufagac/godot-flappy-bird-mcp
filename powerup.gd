@@ -35,10 +35,9 @@ func _physics_process(delta: float) -> void:
 		queue_free()
 
 func _on_body_entered(body: Node2D) -> void:
-	if body is Bird:
-		if body.has_method("kindle"):
-			body.kindle(5) # Give 5 Kindled fireballs!
-			queue_free()
+	if body.has_method("kindle"):
+		body.kindle(5) # Give 5 Kindled fireballs!
+		queue_free()
 
 func _draw() -> void:
 	var pulse = sin(lifetime * 8.0) * 1.5

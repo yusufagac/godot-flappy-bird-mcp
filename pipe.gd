@@ -79,7 +79,7 @@ func _setup_collision_areas() -> void:
 	bottom_area.body_entered.connect(_on_bird_entered)
 
 func _on_bird_entered(body: Node2D) -> void:
-	if body is Bird:
+	if body.has_method("die"):
 		body.die()
 
 # Procedural drawing of beautiful premium dark gothic stone columns

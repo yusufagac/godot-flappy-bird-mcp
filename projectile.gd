@@ -95,7 +95,7 @@ func _on_body_entered(body: Node2D) -> void:
 			queue_free()
 	else: # DARK_FIREBALL variations
 		# Fired by boss, hits player
-		if body is Bird:
+		if body.has_method("die"):
 			body.die()
 			queue_free()
 

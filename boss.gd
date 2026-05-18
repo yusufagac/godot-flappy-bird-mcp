@@ -367,7 +367,7 @@ func _process_dash(delta: float) -> void:
 		jaw_open_amount = move_toward(jaw_open_amount, 0.0, delta * 30.0)
 
 func _on_body_entered(body: Node2D) -> void:
-	if body is Bird:
+	if body.has_method("die"):
 		body.die()
 
 func _draw() -> void:

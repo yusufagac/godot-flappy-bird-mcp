@@ -45,7 +45,7 @@ func take_damage(amount: int) -> void:
 		queue_free()
 
 func _on_body_entered(body: Node2D) -> void:
-	if body is Bird:
+	if body.has_method("die"):
 		body.die()
 
 func _draw() -> void:
