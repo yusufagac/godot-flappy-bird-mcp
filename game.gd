@@ -1,10 +1,14 @@
 extends Node2D
 
-enum GameState { START, PLAYING, BOSS_INTRO, BOSS_FIGHT, VICTORY, GAME_OVER }
+enum GameState { START, PLAYING, BOSS_INTRO, BOSS_FIGHT, BONFIRE, VICTORY, GAME_OVER }
 
 var current_state: GameState = GameState.START
 var score: int = 0
 var highscore: int = 0
+var last_checkpoint_score: int = 0
+
+# UI Overlay references
+var bonfire_lit_label: Label = null
 
 var pipe_spawn_timer: float = 0.0
 const PIPE_SPAWN_INTERVAL: float = 2.2
@@ -23,6 +27,7 @@ var victory_label: Label = null
 var progress_container: Panel = null
 var progress_indicator: ColorRect = null
 var progress_text_label: Label = null
+var lifetime: float = 0.0
 
 var estus_spawn_timer: float = 0.0
 var enemy_spawn_timer: float = 0.0
@@ -221,7 +226,18 @@ func _setup_ui() -> void:
 	progress_text_label.text = "PROGRESS: 0/100 | Target: Asylum Demon"
 	progress_container.add_child(progress_text_label)
 
-func _reset_game() -> void:
+	# BONFIRE LIT Overlay Label (Souls style gold overlay)
+	bonfire_lit_label = Label.new()
+	bonfire_lit_label.text = "BONFIRE LIT\nATEŞ YAKILDI"
+	bonfire_lit_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	bonfire_lit_label.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	bonfire_lit_label.size = Vector2(VIEWPORT_WIDTH, VIEWPORT_HEIGHT)
+	bonfire_lit_label.add_theme_font_size_override("font_size", 42)
+	bonfire_lit_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15))
+	bonfire_lit_label.hide()
+	canvas_layer.add_child(bonfire_lit_label)
+
+func _reset_game(start_score: int = 0) -> void:
 	# Clear old pipes
 	for pipe in pipes:
 		if is_instance_valid(pipe):
@@ -248,14 +264,29 @@ func _reset_game() -> void:
 		boss.queue_free()
 	boss = null
 	
-	score = 0
-	score_label.text = "0"
-	score_label.hide()
+	score = start_score
+	score_label.text = str(score)
+	if score > 0:
+		score_label.show()
+	else:
+		score_label.hide()
 	
 	if progress_indicator:
-		progress_indicator.position.x = 30
+		var progress_ratio = clamp(float(score) / 100.0, 0.0, 1.0)
+		progress_indicator.position.x = 30.0 + (progress_ratio * 340.0) - 4.0
 	if progress_text_label:
-		progress_text_label.text = "PROGRESS: 0/100 | Target: Asylum Demon"
+		var next_boss = "Asylum Demon"
+		if score < 10: next_boss = "Asylum Demon"
+		elif score < 20: next_boss = "Bell Gargoyle"
+		elif score < 30: next_boss = "Capra Demon"
+		elif score < 40: next_boss = "Gaping Dragon"
+		elif score < 50: next_boss = "Chaos Witch Quelaag"
+		elif score < 60: next_boss = "Wolf Sif"
+		elif score < 70: next_boss = "Iron Golem"
+		elif score < 80: next_boss = "Ornstein"
+		elif score < 90: next_boss = "Gravelord Nito"
+		else: next_boss = "Lord Gwyn"
+		progress_text_label.text = "PROGRESS: %d/100 | Target: %s" % [score, next_boss]
 	
 	# Reset timers
 	estus_spawn_timer = 0.0
@@ -267,7 +298,7 @@ func _reset_game() -> void:
 		bird.queue_free()
 	
 	bird = Bird.new()
-	bird.position = Vector2(120, 320)
+	bird.position = Vector2(240, 520) if score > 0 else Vector2(120, 320)
 	bird.hit_obstacle.connect(_on_bird_hit)
 	
 	# Collision Shape for Bird
@@ -289,13 +320,29 @@ func _reset_game() -> void:
 	if victory_label:
 		victory_label.hide()
 		victory_label.modulate = Color.WHITE
+	if bonfire_lit_label:
+		bonfire_lit_label.hide()
 		
-	current_state = GameState.START
-	title_label.text = "FLAPPY SOULS"
-	title_label.add_theme_color_override("font_color", Color(0.75, 0.2, 0.15)) # Souls dark red title!
-	title_label.show()
-	instruction_label.text = "TAP SPACE TO KINDLE THE FLAME\n(GET SCORE 6 TO FIGHT GWYN)"
-	instruction_label.show()
+	# Checkpoint starting logic
+	if score > 0:
+		current_state = GameState.BONFIRE
+		bird.is_alive = true
+		bird.kindle(8) # Kindle player with 8 fireballs!
+		
+		if bonfire_lit_label:
+			bonfire_lit_label.show()
+			bonfire_lit_label.modulate.a = 1.0
+			
+		title_label.hide()
+		instruction_label.text = "RESTING AT BONFIRE\n[SPACE] TO FLY OUT AND VENTURE FORTH"
+		instruction_label.show()
+	else:
+		current_state = GameState.START
+		title_label.text = "FLAPPY SOULS"
+		title_label.add_theme_color_override("font_color", Color(0.75, 0.2, 0.15)) # Souls dark red title!
+		title_label.show()
+		instruction_label.text = "TAP SPACE TO KINDLE THE FLAME\n(GET SCORE 100 TO END GAUNTLET)"
+		instruction_label.show()
 
 func _start_game() -> void:
 	current_state = GameState.PLAYING
@@ -304,6 +351,7 @@ func _start_game() -> void:
 	instruction_label.hide()
 
 func _physics_process(delta: float) -> void:
+	lifetime += delta
 	# Update HUD progress bar slider and target text dynamically
 	if progress_indicator and progress_text_label and bird and bird.is_alive:
 		var progress_ratio = clamp(float(score) / 100.0, 0.0, 1.0)
@@ -407,6 +455,29 @@ func _physics_process(delta: float) -> void:
 				
 			if bird.global_position.y >= GROUND_Y:
 				bird.die()
+				
+		GameState.BONFIRE:
+			if bird and is_instance_valid(bird):
+				bird.velocity = Vector2.ZERO
+				bird.rotation = 0.0
+				bird.global_position = Vector2(240, 520) # cozy in nest
+				
+			if Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
+				# Flap bird upwards to leave the nest!
+				if bird and is_instance_valid(bird):
+					bird.position.y -= 40.0
+					bird.velocity.y = -260.0
+				
+				# Hide bonfire lit overlay
+				if bonfire_lit_label:
+					var fade = create_tween()
+					fade.tween_property(bonfire_lit_label, "modulate:a", 0.0, 0.6)
+					fade.tween_callback(bonfire_lit_label.hide)
+				
+				instruction_label.hide()
+				current_state = GameState.PLAYING
+				pipe_spawn_timer = 0.0
+				enemy_spawn_timer = 0.0
 				
 		GameState.BOSS_FIGHT:
 			if Input.is_action_just_pressed("ui_accept") or Input.is_mouse_button_pressed(MOUSE_BUTTON_LEFT):
@@ -517,26 +588,56 @@ func _on_boss_defeated() -> void:
 	var current_tier = (score / 10) + 1
 	if current_tier < 10:
 		# Mid-boss slain!
-		# 1. Clear all active boss fireballs to make the screen safe
+		# 1. Clear all active projectiles, enemies, and obstacles to make the screen safe
 		for child in get_children():
 			if child is Projectile and child.type != 0:
 				child.queue_free()
+		for pipe in pipes:
+			if is_instance_valid(pipe):
+				pipe.queue_free()
+		pipes.clear()
+		for g in gargoyles:
+			if is_instance_valid(g):
+				g.queue_free()
+		gargoyles.clear()
+		for p in powerups:
+			if is_instance_valid(p):
+				p.queue_free()
+		powerups.clear()
 				
-		# 2. Grant +4 score bonus to reach the next X0 multiple
+		# 2. Grant +4 score bonus to reach the next multiple of 10
 		score = ((score / 10) + 1) * 10
 		score_label.text = str(score)
 		
-		# 3. Resume PLAYING state and reset timers
-		current_state = GameState.PLAYING
-		pipe_spawn_timer = 0.0
-		enemy_spawn_timer = 0.0
+		# Record checkpoint
+		last_checkpoint_score = score
+		
+		# 3. Transition to BONFIRE resting cutscene
+		current_state = GameState.BONFIRE
+		
+		# Tween bird to glide down into the nest
+		var bird_tween = create_tween()
+		bird_tween.tween_property(bird, "global_position", Vector2(240, 520), 1.6).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+		bird_tween.tween_callback(func():
+			bird.kindle(8) # Kindle player with 8 fireballs!
+			
+			# Fade-in BONFIRE LIT overlay
+			if bonfire_lit_label:
+				bonfire_lit_label.show()
+				bonfire_lit_label.modulate.a = 0.0
+				var fade = create_tween()
+				fade.tween_property(bonfire_lit_label, "modulate:a", 1.0, 1.2)
+				
+			instruction_label.text = "RESTING AT BONFIRE\n[SPACE] TO FLY OUT AND VENTURE FORTH"
+			instruction_label.show()
+		)
 		
 		# 4. Briefly flash a Souls-style boss slain notification
 		title_label.text = "%s SLAIN" % boss.boss_name
 		title_label.add_theme_color_override("font_color", Color(1.0, 0.75, 0.15)) # Golden yellow
 		title_label.show()
 		var hide_title = create_tween()
-		hide_title.tween_interval(2.5)
+		hide_title.tween_interval(2.2)
 		hide_title.tween_callback(title_label.hide)
 	else:
 		# Final Boss Gwyn Slain! Full Victory!
@@ -591,7 +692,13 @@ func _on_bird_hit() -> void:
 			highscore = score
 			
 		title_label.hide() # Hide normal GAME OVER
-		instruction_label.text = "SCORE: %d | HIGH: %d\nTAP SPACE TO RETRY" % [score, highscore]
+		
+		# Dynamic retry message based on checkpoint availability
+		if last_checkpoint_score > 0:
+			instruction_label.text = "SCORE: %d | HIGH: %d\n[SPACE] TO RESPAWN AT BONFIRE" % [score, highscore]
+		else:
+			instruction_label.text = "SCORE: %d | HIGH: %d\nTAP SPACE TO RETRY" % [score, highscore]
+			
 		instruction_label.add_theme_color_override("font_color", Color.WHITE)
 		instruction_label.show()
 
@@ -605,7 +712,9 @@ func _on_mcp_flap() -> void:
 
 func _on_mcp_restart() -> void:
 	if current_state in [GameState.GAME_OVER, GameState.VICTORY]:
-		_reset_game()
+		if current_state == GameState.VICTORY:
+			last_checkpoint_score = 0
+		_reset_game(last_checkpoint_score)
 
 func _on_mcp_pause() -> void:
 	get_tree().paused = true
@@ -727,3 +836,68 @@ func _draw() -> void:
 	draw_line(Vector2(0, GROUND_Y + 30), Vector2(140, GROUND_Y + 34), Color(0.9, 0.35, 0.02), 2.0)
 	draw_line(Vector2(140, GROUND_Y + 34), Vector2(280, GROUND_Y + 28), Color(0.9, 0.35, 0.02), 1.5)
 	draw_line(Vector2(280, GROUND_Y + 28), Vector2(VIEWPORT_WIDTH, GROUND_Y + 36), Color(0.9, 0.35, 0.02), 2.5)
+	
+	# Draw procedural Bonfire and Giant Bird Nest when resting
+	if current_state == GameState.BONFIRE:
+		# Draw Nest
+		var nest_center = Vector2(240, 560)
+		
+		# Draw concentric oval layers for cozy look
+		# Layer 1: Dark outer twigs
+		draw_circle(nest_center, 64.0, Color(0.12, 0.08, 0.06))
+		# Layer 2: Medium brown twigs
+		draw_circle(nest_center, 54.0, Color(0.24, 0.16, 0.12))
+		# Layer 3: Warm inner nest lining
+		draw_circle(nest_center, 44.0, Color(0.38, 0.25, 0.18))
+		
+		# Draw programmatic twigs overlapping
+		for i in range(12):
+			var angle = (float(i) / 12) * PI * 2.0
+			var start_pt = nest_center + Vector2(cos(angle), sin(angle) * 0.4) * 44.0
+			var end_pt = nest_center + Vector2(cos(angle + 0.8), sin(angle + 0.8) * 0.4) * 64.0
+			draw_line(start_pt, end_pt, Color(0.18, 0.12, 0.08), 3.0)
+			
+		# Coiled Bonfire Sword (Procedural)
+		var blade_top = nest_center + Vector2(0, -32)
+		var hilt_center = nest_center + Vector2(0, -36)
+		
+		# Coiled Blade (zigzagging line representing twisted blade)
+		var sword_pts = PackedVector2Array([
+			hilt_center,
+			hilt_center + Vector2(2, 6),
+			hilt_center + Vector2(-2, 12),
+			hilt_center + Vector2(2, 18),
+			hilt_center + Vector2(-1, 24),
+			nest_center
+		])
+		# Draw twisted dark steel blade
+		draw_polyline(sword_pts, Color(0.15, 0.15, 0.18), 3.0)
+		# Draw glowing hot lava stripe along blade
+		draw_polyline(sword_pts, Color(1.0, 0.4, 0.0), 1.2)
+		
+		# Hilt Guard (Cross)
+		draw_line(hilt_center + Vector2(-10, 0), hilt_center + Vector2(10, 0), Color(0.12, 0.12, 0.15), 3.0)
+		# Hilt Pommel (Top ball)
+		draw_circle(hilt_center + Vector2(0, -4), 3.0, Color(0.2, 0.2, 0.24))
+		
+		# Bonfire Ignited Fire Flame!
+		var pulse = 1.0 + sin(lifetime * 10.0) * 0.15
+		var flame_center = nest_center + Vector2(0, -10)
+		
+		# Outer yellow glow aura
+		draw_circle(flame_center, 24.0 * pulse, Color(1.0, 0.5, 0.0, 0.25))
+		
+		# Draw animated dancing flames
+		for j in range(4):
+			var offset_x = sin(lifetime * 12.0 + j) * 8.0
+			var flame_pts = PackedVector2Array([
+				flame_center + Vector2(-12 + j*3, 6),
+				flame_center + Vector2(0 + offset_x, -28 - j*4),
+				flame_center + Vector2(12 - j*3, 6),
+				flame_center + Vector2(-12 + j*3, 6)
+			])
+			var f_color = Color(1.0, 0.45, 0.0, 0.7) if j % 2 == 0 else Color(1.0, 0.8, 0.1, 0.8)
+			draw_colored_polygon(flame_pts, f_color)
+			
+		# Glowing core
+		draw_circle(flame_center + Vector2(0, 4), 8.0, Color(1.0, 0.9, 0.5, 0.9))
