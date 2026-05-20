@@ -17,10 +17,12 @@ var movement_type: int = 0 # 0 = Static, 1 = Vertical, 2 = Horizontal, 3 = Diago
 var movement_speed: float = 2.2
 var movement_range: float = 50.0
 var initial_y: float = 0.0
+var base_x: float = 0.0
 var time_passed: float = 0.0
 
 func _ready() -> void:
 	initial_y = position.y
+	base_x = position.x
 	# Add Area2D components dynamically for collisions
 	_setup_collision_areas()
 
@@ -30,18 +32,24 @@ func _physics_process(delta: float) -> void:
 
 	time_passed += delta
 	
-	# Horizontal scroll
-	position.x -= SPEED * delta
+	# Horizontal scroll of the base position
+	base_x -= SPEED * delta
 	
-	# Apply dynamic secondary movement
+	var offset_x: float = 0.0
+	var offset_y: float = 0.0
+	
+	# Apply dynamic secondary movement relative to the base positions
 	match movement_type:
 		1: # Vertical bobbing
-			position.y = initial_y + sin(time_passed * movement_speed) * movement_range
+			offset_y = sin(time_passed * movement_speed) * movement_range
 		2: # Horizontal squeeze sliding
-			position.x += cos(time_passed * movement_speed * 1.5) * 1.2
+			offset_x = cos(time_passed * movement_speed * 1.5) * movement_range
 		3: # Diagonal orbit movement
-			position.y = initial_y + sin(time_passed * movement_speed) * movement_range
-			position.x += cos(time_passed * movement_speed * 1.5) * 1.0
+			offset_y = sin(time_passed * movement_speed) * movement_range
+			offset_x = cos(time_passed * movement_speed * 1.5) * movement_range
+	
+	position.x = base_x + offset_x
+	position.y = initial_y + offset_y
 	
 	# Delete once off screen
 	if position.x < -100:
