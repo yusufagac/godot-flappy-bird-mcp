@@ -664,6 +664,9 @@ func _physics_process(delta: float) -> void:
 
 	# Send State over MCP WebSocket
 	_send_mcp_state()
+	
+	# Redraw screen for animations (bonfire flame, scrolling parallax fog)
+	queue_redraw()
 
 func _spawn_pipe_pair() -> void:
 	var pipe_script = load("res://pipe.gd")
@@ -931,11 +934,20 @@ func _send_mcp_state() -> void:
 
 # Draw gorgeous gradient background & parallax sky procedurally
 func _draw() -> void:
-	# Dark Gothic Sky Gradient (Sunset of Lordran style)
-	for y in range(0, int(GROUND_Y)):
-		var t = float(y) / GROUND_Y
-		var sky_color = lerp(Color(0.08, 0.06, 0.12), Color(0.24, 0.08, 0.14), t)
-		draw_line(Vector2(0, y), Vector2(VIEWPORT_WIDTH, y), sky_color)
+	# Dark Gothic Sky Gradient (Hardware‑accelerated vertical gradient)
+	var sky_pts = PackedVector2Array([
+		Vector2(0, 0),
+		Vector2(VIEWPORT_WIDTH, 0),
+		Vector2(VIEWPORT_WIDTH, GROUND_Y),
+		Vector2(0, GROUND_Y)
+	])
+	var sky_colors = PackedColorArray([
+		Color(0.08, 0.06, 0.12),
+		Color(0.08, 0.06, 0.12),
+		Color(0.24, 0.08, 0.14),
+		Color(0.24, 0.08, 0.14)
+	])
+	draw_polygon(sky_pts, sky_colors)
 		
 	# Draw Ruined Gothic Spire and Castle silhouettes in background
 	var ruins_color = Color(0.05, 0.04, 0.07)
@@ -974,6 +986,28 @@ func _draw() -> void:
 	])
 	draw_colored_polygon(r_pts, ruins_color)
 
+	# Parallax fog layers (two speeds, semi‑transparent dark clouds)
+	var fog_speed_near = 28.0
+	var fog_speed_far = 12.0
+	var fog_wrap_near = VIEWPORT_WIDTH + 200.0
+	var fog_wrap_far = VIEWPORT_WIDTH + 160.0
+	var fog_color_near = Color(0.18, 0.15, 0.20, 0.15)
+	var fog_color_far = Color(0.12, 0.10, 0.15, 0.12)
+	# Near fog (faster)
+	for i in range(6):
+		var raw_x = (i * 150.0) - (lifetime * fog_speed_near)
+		var x_pos = raw_x - floor(raw_x / fog_wrap_near) * fog_wrap_near - 130.0
+		var y_pos = (GROUND_Y - 35) + sin(lifetime * 0.7 + i) * 8.0
+		var radius = 120.0 + cos(lifetime * 0.3 + i) * 20.0
+		draw_circle(Vector2(x_pos, y_pos), radius, fog_color_near)
+	# Far fog (slower)
+	for i in range(8):
+		var raw_x = (i * 100.0) - (lifetime * fog_speed_far)
+		var x_pos = raw_x - floor(raw_x / fog_wrap_far) * fog_wrap_far - 100.0
+		var y_pos = (GROUND_Y - 70) + sin(lifetime * 0.4 + i) * 12.0
+		var radius = 90.0 + sin(lifetime * 0.2 + i * 2) * 15.0
+		draw_circle(Vector2(x_pos, y_pos), radius, fog_color_far)
+
 	# Draw Ground (Ash-grey dirt + dark stone border + glowing ember crack)
 	draw_rect(Rect2(0, GROUND_Y, VIEWPORT_WIDTH, VIEWPORT_HEIGHT - GROUND_Y), Color(0.13, 0.13, 0.15)) # Ash dirt
 	draw_rect(Rect2(0, GROUND_Y, VIEWPORT_WIDTH, 12), Color(0.08, 0.08, 0.1)) # Dark boundary
@@ -1005,7 +1039,7 @@ func _draw() -> void:
 			draw_line(start_pt, end_pt, Color(0.18, 0.12, 0.08), 3.0)
 			
 		# Coiled Bonfire Sword (Procedural)
-		var blade_top = nest_center + Vector2(0, -32)
+		var _blade_top = nest_center + Vector2(0, -32)
 		var hilt_center = nest_center + Vector2(0, -36)
 		
 		# Coiled Blade (zigzagging line representing twisted blade)
